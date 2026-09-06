@@ -127,6 +127,40 @@ app.get('/api/invoices', (req, res) => {
   res.json(db.prepare(sql).all(...values));
 });
 
+const csvField = (value) => {
+  const s = String(value ?? '');
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+
+app.get('/api/invoices/export', (req, res) => {
+  const { status, search } = req.query;
+  let sql = `SELECT i.*, c.name as client_name, c.company as client_company FROM invoices i JOIN clients c ON c.id = i.client_id WHERE 1=1`;
+  const values = [];
+  if (status && status !== 'all') { sql += ' AND i.status = ?'; values.push(status); }
+  if (search) { sql += ' AND (i.number LIKE ? OR c.name LIKE ? OR c.company LIKE ?)'; const term = `%${search}%`; values.push(term, term, term); }
+  sql += ' ORDER BY i.due_date ASC, i.created_at DESC';
+  const invoices = db.prepare(sql).all(...values);
+
+  const header = ['Number', 'Client', 'Company', 'Issue Date', 'Due Date', 'Status', 'Subtotal', 'Tax Rate %', 'Tax', 'Total'];
+  const rows = invoices.map((invoice) => [
+    invoice.number,
+    invoice.client_name,
+    invoice.client_company,
+    invoice.issue_date,
+    invoice.due_date,
+    invoice.status,
+    (invoice.subtotal_cents / 100).toFixed(2),
+    invoice.tax_rate,
+    (invoice.tax_cents / 100).toFixed(2),
+    (invoice.total_cents / 100).toFixed(2),
+  ]);
+  const csv = [header, ...rows].map((row) => row.map(csvField).join(',')).join('\n');
+
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename="invoices.csv"');
+  res.send(csv);
+});
+
 app.get('/api/invoices/:id', (req, res) => {
   const invoice = getInvoice(req.params.id);
   if (!invoice) return res.status(404).json({ error: 'Invoice not found.' });
