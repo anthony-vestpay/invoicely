@@ -161,6 +161,15 @@ app.get('/api/invoices/export', (req, res) => {
   res.send(csv);
 });
 
+// wkhtmltopdf is required to render invoice HTML into a downloadable PDF. Keep
+// this route in place while the host image is updated so API consumers get a
+// clear, intentional response instead of a missing-route error.
+app.get('/api/invoices/:id/pdf', (req, res) => {
+  res.status(501).json({
+    error: 'PDF export is not available because wkhtmltopdf is not installed on this server.',
+  });
+});
+
 app.get('/api/invoices/:id', (req, res) => {
   const invoice = getInvoice(req.params.id);
   if (!invoice) return res.status(404).json({ error: 'Invoice not found.' });
