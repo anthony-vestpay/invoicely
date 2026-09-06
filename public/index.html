@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Invoicely — Invoice tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="#"><span class="brand-mark">i</span><span>invoicely</span></a>
+    <nav>
+      <a class="nav-link active" href="#dashboard" data-view="dashboard"><span>▦</span> Overview</a>
+      <a class="nav-link" href="#invoices" data-view="invoices"><span>□</span> Invoices</a>
+      <a class="nav-link" href="#clients" data-view="clients"><span>◉</span> Clients</a>
+    </nav>
+    <div class="sidebar-bottom"><div class="help-icon">?</div><div><strong>Need a hand?</strong><small>Visit the help center</small></div></div>
+  </aside>
+  <main>
+    <header class="topbar"><div class="mobile-brand brand"><span class="brand-mark">i</span><span>invoicely</span></div><div class="top-actions"><span class="today" id="today"></span><button class="avatar" title="Your account">JD</button></div></header>
+    <section id="dashboard" class="view active-view">
+      <div class="page-heading"><div><p class="eyebrow">YOUR BUSINESS, AT A GLANCE</p><h1>Good morning, Jordan <span>✦</span></h1><p class="subheading">Here’s what’s happening with your invoices.</p></div><button class="button primary" id="new-invoice">＋ New invoice</button></div>
+      <div class="stat-grid">
+        <article class="stat-card paid"><div class="stat-icon">↗</div><p>Paid this month</p><strong id="paidTotal">$0.00</strong><small id="paidMeta">No payments yet</small></article>
+        <article class="stat-card outstanding"><div class="stat-icon">◌</div><p>Outstanding</p><strong id="outstandingTotal">$0.00</strong><small id="outstandingMeta">0 open invoices</small></article>
+        <article class="stat-card overdue"><div class="stat-icon">!</div><p>Overdue</p><strong id="overdueTotal">$0.00</strong><small id="overdueMeta">Nothing overdue</small></article>
+      </div>
+      <section class="panel recent-panel"><div class="panel-header"><div><h2>Recent invoices</h2><p>Your latest activity, all in one place.</p></div><button class="text-button" data-go="invoices">View all <span>→</span></button></div><div class="table-wrap"><table><thead><tr><th>INVOICE</th><th>CLIENT</th><th>DUE DATE</th><th>AMOUNT</th><th>STATUS</th><th></th></tr></thead><tbody id="recentInvoices"></tbody></table></div><div id="recentEmpty" class="empty-state"><div class="empty-illustration">✦</div><h3>Your invoice desk is ready</h3><p>Create your first invoice to start tracking what you earn.</p><button class="button primary" data-new-invoice>＋ Create an invoice</button></div></section>
+    </section>
+    <section id="invoices" class="view">
+      <div class="page-heading"><div><p class="eyebrow">MONEY IN MOTION</p><h1>Invoices</h1><p class="subheading">Create, send, and stay on top of every payment.</p></div><button class="button primary" data-new-invoice>＋ New invoice</button></div>
+      <div class="toolbar"><div class="tabs" id="invoiceTabs"><button class="tab active" data-status="all">All <span id="allCount">0</span></button><button class="tab" data-status="draft">Draft</button><button class="tab" data-status="sent">Sent</button><button class="tab" data-status="paid">Paid</button><button class="tab" data-status="overdue">Overdue</button></div><label class="search"><span>⌕</span><input id="invoiceSearch" placeholder="Search invoices" /></label></div>
+      <section class="panel table-panel"><div class="table-wrap"><table><thead><tr><th>INVOICE</th><th>CLIENT</th><th>ISSUED</th><th>DUE</th><th>AMOUNT</th><th>STATUS</th><th></th></tr></thead><tbody id="allInvoices"></tbody></table></div><div id="invoicesEmpty" class="empty-state compact"><h3>No invoices here yet</h3><p>Try changing your filters, or create a new invoice.</p></div></section>
+    </section>
+    <section id="clients" class="view"><div class="page-heading"><div><p class="eyebrow">YOUR PEOPLE</p><h1>Clients</h1><p class="subheading">The people and businesses you bill.</p></div><button class="button primary" id="new-client">＋ New client</button></div><div class="clients-grid" id="clientsList"></div><div id="clientsEmpty" class="empty-state"><div class="empty-illustration">◎</div><h3>Build your client list</h3><p>Add a client once, then invoice them whenever you need.</p><button class="button primary" id="empty-new-client">＋ Add a client</button></div></section>
+  </main>
+
+  <div class="modal-backdrop" id="invoiceModal" aria-hidden="true"><form class="modal invoice-modal" id="invoiceForm"><div class="modal-header"><div><p class="eyebrow">NEW INVOICE</p><h2>Create an invoice</h2></div><button type="button" class="close-modal" data-close="invoiceModal">×</button></div><div class="modal-body"><div class="form-row"><label>Client<select id="invoiceClient" required></select></label><button type="button" id="quickClient" class="add-client-link">＋ Add client</button></div><div class="form-row two"><label>Issue date<input type="date" id="issueDate" required></label><label>Due date<input type="date" id="dueDate" required></label></div><div class="line-title"><h3>Line items</h3><span>Quantity × rate</span></div><div class="line-items" id="lineItems"></div><button type="button" class="add-line" id="addLine">＋ Add line item</button><div class="form-row two"><label>Tax rate<input type="number" id="taxRate" min="0" step="0.1" value="0" placeholder="0"></label><label>Starting status<select id="invoiceStatus"><option value="draft">Draft</option><option value="sent">Sent</option></select></label></div><label>Notes <textarea id="invoiceNotes" placeholder="Thank you for your business."></textarea></label><div class="invoice-total"><span>Total</span><strong id="formTotal">$0.00</strong></div></div><div class="modal-footer"><button type="button" class="button secondary" data-close="invoiceModal">Cancel</button><button class="button primary" type="submit">Create invoice</button></div></form></div>
+  <div class="modal-backdrop" id="clientModal" aria-hidden="true"><form class="modal client-modal" id="clientForm"><div class="modal-header"><div><p class="eyebrow">NEW CLIENT</p><h2>Add a client</h2></div><button type="button" class="close-modal" data-close="clientModal">×</button></div><div class="modal-body"><label>Name<input id="clientName" required placeholder="Alex Morgan"></label><label>Company<input id="clientCompany" placeholder="Northstar Studio"></label><label>Email<input id="clientEmail" type="email" placeholder="alex@company.com"></label><label>Address<textarea id="clientAddress" placeholder="Optional billing address"></textarea></label></div><div class="modal-footer"><button type="button" class="button secondary" data-close="clientModal">Cancel</button><button class="button primary" type="submit">Add client</button></div></form></div>
+  <div class="toast" id="toast"></div>
+  <script src="/app.js"></script>
+</body></html>
