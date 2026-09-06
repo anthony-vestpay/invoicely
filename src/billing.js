@@ -12,9 +12,24 @@ export function getTaxRate() {
 
 // Currency conversion is out of scope for now; all amounts are assumed to be
 // in a single currency's smallest unit (cents).
-export function calculateInvoiceTotals(items) {
+//
+// discountPercent is applied to the subtotal before tax, so tax is only owed
+// on the discounted amount.
+export function calculateInvoiceTotals(items, { discountPercent = 0 } = {}) {
+  if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+    throw new Error(`Invalid discountPercent: "${discountPercent}". Expected a number between 0 and 100.`);
+  }
   const subtotalCents = items.reduce((sum, item) => sum + item.amountCents, 0);
+  const discountCents = Math.round((subtotalCents * discountPercent) / 100);
+  const discountedSubtotalCents = subtotalCents - discountCents;
   const taxRate = getTaxRate();
-  const taxCents = Math.round((subtotalCents * taxRate) / 100);
-  return { subtotalCents, taxRate, taxCents, totalCents: subtotalCents + taxCents };
+  const taxCents = Math.round((discountedSubtotalCents * taxRate) / 100);
+  return {
+    subtotalCents,
+    discountPercent,
+    discountCents,
+    taxRate,
+    taxCents,
+    totalCents: discountedSubtotalCents + taxCents,
+  };
 }

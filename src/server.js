@@ -33,6 +33,8 @@ db.exec(`
     status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft', 'sent', 'paid', 'overdue')),
     notes TEXT,
     subtotal_cents INTEGER NOT NULL DEFAULT 0,
+    discount_percent REAL NOT NULL DEFAULT 0,
+    discount_cents INTEGER NOT NULL DEFAULT 0,
     tax_rate REAL NOT NULL DEFAULT 0,
     tax_cents INTEGER NOT NULL DEFAULT 0,
     total_cents INTEGER NOT NULL DEFAULT 0,
@@ -49,6 +51,16 @@ db.exec(`
     amount_cents INTEGER NOT NULL DEFAULT 0
   );
 `);
+
+// CREATE TABLE IF NOT EXISTS won't add columns to a database that already
+// exists from before discounts were introduced, so patch it in here.
+const invoiceColumns = db.prepare("PRAGMA table_info(invoices)").all().map((col) => col.name);
+if (!invoiceColumns.includes('discount_percent')) {
+  db.exec('ALTER TABLE invoices ADD COLUMN discount_percent REAL NOT NULL DEFAULT 0');
+}
+if (!invoiceColumns.includes('discount_cents')) {
+  db.exec('ALTER TABLE invoices ADD COLUMN discount_cents INTEGER NOT NULL DEFAULT 0');
+}
 
 // Validated at startup so a bad TAX_RATE fails fast instead of surfacing on the
 // first invoice a user tries to create.
@@ -67,11 +79,13 @@ const invoiceNumber = () => {
 
 function recalculateInvoice(id) {
   const items = db.prepare('SELECT amount_cents FROM invoice_items WHERE invoice_id = ?').all(id);
-  const { subtotalCents, taxRate, taxCents, totalCents } = calculateInvoiceTotals(
-    items.map((item) => ({ amountCents: item.amount_cents }))
+  const { discount_percent: discountPercent } = db.prepare('SELECT discount_percent FROM invoices WHERE id = ?').get(id);
+  const { subtotalCents, discountCents, taxRate, taxCents, totalCents } = calculateInvoiceTotals(
+    items.map((item) => ({ amountCents: item.amount_cents })),
+    { discountPercent }
   );
-  db.prepare(`UPDATE invoices SET subtotal_cents = ?, tax_rate = ?, tax_cents = ?, total_cents = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
-    .run(subtotalCents, taxRate, taxCents, totalCents, id);
+  db.prepare(`UPDATE invoices SET subtotal_cents = ?, discount_cents = ?, tax_rate = ?, tax_cents = ?, total_cents = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+    .run(subtotalCents, discountCents, taxRate, taxCents, totalCents, id);
 }
 
 function getInvoice(id) {
@@ -177,12 +191,15 @@ app.get('/api/invoices/:id', (req, res) => {
 });
 
 app.post('/api/invoices', (req, res) => {
-  const { clientId, issueDate, dueDate, status = 'draft', notes = '', items = [] } = req.body;
+  const { clientId, issueDate, dueDate, status = 'draft', notes = '', items = [], discountPercent = 0 } = req.body;
   if (!clientId || !issueDate || !dueDate || !items.length) return res.status(400).json({ error: 'Client, dates, and at least one line item are required.' });
+  if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+    return res.status(400).json({ error: 'discountPercent must be a number between 0 and 100.' });
+  }
   const create = db.transaction(() => {
-    const result = db.prepare(`INSERT INTO invoices (number, client_id, issue_date, due_date, status, notes)
-      VALUES (?, ?, ?, ?, ?, ?)`)
-      .run(invoiceNumber(), clientId, issueDate, dueDate, status, notes);
+    const result = db.prepare(`INSERT INTO invoices (number, client_id, issue_date, due_date, status, notes, discount_percent)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .run(invoiceNumber(), clientId, issueDate, dueDate, status, notes, discountPercent);
     const id = result.lastInsertRowid;
     const itemStatement = db.prepare('INSERT INTO invoice_items (invoice_id, description, quantity, rate_cents, amount_cents) VALUES (?, ?, ?, ?, ?)');
     items.forEach((item) => {

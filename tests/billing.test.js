@@ -65,3 +65,49 @@ test('calculateInvoiceTotals is exact across a range of amounts and rates', () =
     });
   }
 });
+
+test('calculateInvoiceTotals defaults discountPercent to 0 when omitted', () => {
+  withTaxRate(0, () => {
+    const totals = calculateInvoiceTotals([{ amountCents: 1000 }]);
+    assert.equal(totals.discountPercent, 0);
+    assert.equal(totals.discountCents, 0);
+    assert.equal(totals.totalCents, 1000);
+  });
+});
+
+test('calculateInvoiceTotals applies a discount before tax', () => {
+  withTaxRate(10, () => {
+    // 10000 cents - 20% discount = 8000 cents, then 10% tax on 8000 = 800.
+    const totals = calculateInvoiceTotals([{ amountCents: 10000 }], { discountPercent: 20 });
+    assert.equal(totals.subtotalCents, 10000);
+    assert.equal(totals.discountCents, 2000);
+    assert.equal(totals.taxCents, 800);
+    assert.equal(totals.totalCents, 8800);
+  });
+});
+
+test('calculateInvoiceTotals with a 100% discount owes no tax', () => {
+  withTaxRate(15, () => {
+    const totals = calculateInvoiceTotals([{ amountCents: 5000 }], { discountPercent: 100 });
+    assert.equal(totals.discountCents, 5000);
+    assert.equal(totals.taxCents, 0);
+    assert.equal(totals.totalCents, 0);
+  });
+});
+
+test('calculateInvoiceTotals rounds discount to the nearest cent (regression: order of operations)', () => {
+  withTaxRate(0, () => {
+    // 4700 * 12.5% = 587.5 cents exactly, should round up to 588.
+    const totals = calculateInvoiceTotals([{ amountCents: 4700 }], { discountPercent: 12.5 });
+    assert.equal(totals.discountCents, 588);
+    assert.equal(totals.totalCents, 4700 - 588);
+  });
+});
+
+test('calculateInvoiceTotals throws on a negative discountPercent', () => {
+  assert.throws(() => calculateInvoiceTotals([{ amountCents: 1000 }], { discountPercent: -5 }));
+});
+
+test('calculateInvoiceTotals throws on a discountPercent over 100', () => {
+  assert.throws(() => calculateInvoiceTotals([{ amountCents: 1000 }], { discountPercent: 150 }));
+});
