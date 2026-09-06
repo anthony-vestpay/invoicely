@@ -3,6 +3,7 @@ import Database from 'better-sqlite3';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mkdirSync } from 'node:fs';
+import { getTaxRate, calculateInvoiceTotals } from './billing.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -49,6 +50,10 @@ db.exec(`
   );
 `);
 
+// Validated at startup so a bad TAX_RATE fails fast instead of surfacing on the
+// first invoice a user tries to create.
+console.log(`Invoicely is using a ${getTaxRate()}% tax rate (from TAX_RATE).`);
+
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(root, 'public')));
@@ -61,11 +66,12 @@ const invoiceNumber = () => {
 };
 
 function recalculateInvoice(id) {
-  const subtotal = db.prepare('SELECT COALESCE(SUM(amount_cents), 0) as subtotal FROM invoice_items WHERE invoice_id = ?').get(id).subtotal;
-  const invoice = db.prepare('SELECT tax_rate FROM invoices WHERE id = ?').get(id);
-  const tax = Math.round(subtotal * (invoice.tax_rate / 100));
-  db.prepare(`UPDATE invoices SET subtotal_cents = ?, tax_cents = ?, total_cents = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
-    .run(subtotal, tax, subtotal + tax, id);
+  const items = db.prepare('SELECT amount_cents FROM invoice_items WHERE invoice_id = ?').all(id);
+  const { subtotalCents, taxRate, taxCents, totalCents } = calculateInvoiceTotals(
+    items.map((item) => ({ amountCents: item.amount_cents }))
+  );
+  db.prepare(`UPDATE invoices SET subtotal_cents = ?, tax_rate = ?, tax_cents = ?, total_cents = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+    .run(subtotalCents, taxRate, taxCents, totalCents, id);
 }
 
 function getInvoice(id) {
@@ -93,6 +99,10 @@ app.get('/api/dashboard', (req, res) => {
     ORDER BY i.updated_at DESC LIMIT 6
   `).all();
   res.json({ summary, recent });
+});
+
+app.get('/api/billing/tax-rate', (req, res) => {
+  res.json({ taxRate: getTaxRate() });
 });
 
 app.get('/api/clients', (req, res) => {
@@ -124,12 +134,12 @@ app.get('/api/invoices/:id', (req, res) => {
 });
 
 app.post('/api/invoices', (req, res) => {
-  const { clientId, issueDate, dueDate, status = 'draft', notes = '', taxRate = 0, items = [] } = req.body;
+  const { clientId, issueDate, dueDate, status = 'draft', notes = '', items = [] } = req.body;
   if (!clientId || !issueDate || !dueDate || !items.length) return res.status(400).json({ error: 'Client, dates, and at least one line item are required.' });
   const create = db.transaction(() => {
-    const result = db.prepare(`INSERT INTO invoices (number, client_id, issue_date, due_date, status, notes, tax_rate)
-      VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      .run(invoiceNumber(), clientId, issueDate, dueDate, status, notes, Number(taxRate || 0));
+    const result = db.prepare(`INSERT INTO invoices (number, client_id, issue_date, due_date, status, notes)
+      VALUES (?, ?, ?, ?, ?, ?)`)
+      .run(invoiceNumber(), clientId, issueDate, dueDate, status, notes);
     const id = result.lastInsertRowid;
     const itemStatement = db.prepare('INSERT INTO invoice_items (invoice_id, description, quantity, rate_cents, amount_cents) VALUES (?, ?, ?, ?, ?)');
     items.forEach((item) => {
