@@ -15,6 +15,6 @@ export function getTaxRate() {
 export function calculateInvoiceTotals(items) {
   const subtotalCents = items.reduce((sum, item) => sum + item.amountCents, 0);
   const taxRate = getTaxRate();
-  const taxCents = Math.round(subtotalCents * (taxRate / 100));
+  const taxCents = Math.round((subtotalCents * taxRate) / 100);
   return { subtotalCents, taxRate, taxCents, totalCents: subtotalCents + taxCents };
 }
