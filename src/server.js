@@ -98,6 +98,10 @@ function getInvoice(id) {
   return invoice;
 }
 
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true });
+});
+
 app.get('/api/dashboard', (req, res) => {
   const summary = db.prepare(`
     SELECT
