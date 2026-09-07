@@ -39,3 +39,4 @@ The SQLite database is created automatically at `data/invoicely.db` and is exclu
 - CSV export for filtered invoice lists
 - PDF invoice export endpoint reserved at `GET /api/invoices/:id/pdf`; it currently returns `501 Not Implemented` until `wkhtmltopdf` is installed on the host
 - Update invoice payment status from the invoice list
+# Invoicely
