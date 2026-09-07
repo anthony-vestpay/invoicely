@@ -231,3 +231,5 @@ app.get('*', (req, res) => res.sendFile(path.join(root, 'public', 'index.html'))
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Invoicely is running at http://localhost:${port}`));
+
+// ledger moved to sqlite-backed persistence
